@@ -2,9 +2,92 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>$Title$</title>
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>闪烁点</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+    <link rel="stylesheet" href="https://js.arcgis.com/4.7/esri/css/main.css">
+    <script src="https://js.arcgis.com/4.7/"></script>
 </head>
 <body>
-$END$
+<div id="map"></div>
+<script>
+
+    require(["esri/Map", "esri/views/MapView", "esri/geometry/Point", "dojo/domReady!"], function (Map, MapView, Point) {
+        var map = new Map({
+            basemap: "osm"
+        });
+        var view = new MapView({
+            container: "map",
+            map: map,
+            center: [99.54, 37.83],//中国
+            minZoom: 4,
+            zoom: 4
+        });
+        var data = [{"city": "北京", "point": [116.41667, 39.91667]},
+            {"city": "上海", "point": [121.45174377600, 31.20003793750]},
+            {"city": "重庆", "point": [106.45000, 29.56667]},
+            {"city": "西安", "point": [108.95000, 34.26667]}
+        ];
+
+        var mapId = document.getElementsByClassName("esri-view-surface");
+        var canvas = document.createElement("canvas");
+        canvas.id = "canvas";
+        canvas.width = view.width;
+        canvas.height = view.height;
+        canvas.style.position = "absolute";
+        canvas.style.top = "0";
+        canvas.style.left = "0";
+        canvas.style.border = "1px solid red";
+        mapId[0].appendChild(canvas);
+
+
+        var ctx = canvas.getContext("2d");
+
+        view.watch("extent",drawPoint);
+        var radius = 1;
+        function drawPoint() {
+            ctx.clearRect(0,0,view.width,view.height);
+
+            data.forEach(function (item) {
+                var p = item.point;
+                var point = new Point({
+                    longitude: p[0],
+                    latitude: p[1],
+                    spatialReference:view.spatialReference
+                });
+                var screenPoint = view.toScreen(point);
+                ctx.beginPath();
+                ctx.arc(screenPoint.x,screenPoint.y,radius,0,2*Math.PI);
+                ctx.closePath();
+                ctx.strokeStyle = "rgba(255,225,11,0.7)";
+                ctx.stroke();
+                ctx.shadowColor = "rgba(255,225,11,0.7)";
+                ctx.shadowBlur = 20;
+            });
+            if(radius >= 20){
+                radius = 1;
+            }
+        };
+        function renderer() {
+            drawPoint();
+            radius = radius + 0.3;
+        }
+        animation();
+        function animation() {
+            requestAnimationFrame(animation);
+            renderer();
+        };
+    });
+</script>
 </body>
 </html>
