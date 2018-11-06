@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>曲线运动</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+        
+        html,
+        body,
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+    <link rel="stylesheet" href="https://js.arcgis.com/4.7/esri/css/main.css">
+    <script src="https://js.arcgis.com/4.7/"></script>
+</head>
+
+<body>
+    <div id="map"></div>
+    <script>
+        require(["esri/Map", "esri/views/MapView", "esri/geometry/Point", "esri/Graphic", "dojo/domReady!"],
+            function(Map, MapView, Point, Graphic) {
+                var map = new Map({
+                    basemap: "osm"
+                });
+                var view = new MapView({
+                    container: "map",
+                    map: map,
+                    center: [99.54, 37.83], //中国
+                    minZoom: 4,
+                    zoom: 4
+                });
+                var data = [{
+                    from: '上海',
+                    count: 3556,
+                    fromCenter: {
+                        lat: 31.249162,
+                        lng: 121.487899
+                    },
+                    to: '北京',
+                    toCenter: {
+                        lat: 40.184801,
+                        lng: 116.411588
+                    },
+                }]
+
+                var me = this;
+                var mapId = document.getElementsByClassName("esri-view-surface");
+                var canvas = document.createElement("canvas");
+                canvas.id = "canvas";
+                canvas.width = view.width;
+                canvas.height = view.height;
+                canvas.style.position = "absolute";
+                canvas.style.top = "0";
+                canvas.style.left = "0";
+                canvas.style.border = "1px solid red";
+                mapId[0].appendChild(canvas);
+                var ctx = canvas.getContext("2d");
+
+
+                var can2 = document.createElement("canvas");
+                can2.width = view.width, can2.height = view.height;
+                can2.id = 'canvas2';
+                can2.style.position = 'absolute';
+                can2.style.top = 0;
+                can2.style.left = 0;
+                mapId[0].appendChild(can2);
+                var ctx2 = can2.getContext("2d");
+
+
+                view.watch("extent", movePoint);
+
+
+
+                function getCurvePoints(points, options) {
+                    var me = this;
+                    options = options || {};
+                    var curvePoints = [];
+                    for (var i = 0; i < points.length - 1; i++) {
+                        var p = getCurveByTwoPoints(points[i], points[i + 1], options.count);
+                        if (p && p.length > 0) {
+                            curvePoints = curvePoints.concat(p);
+                        }
+                    }
+                    return curvePoints;
+                }
+                /**
+                 * 根据两点获取曲线坐标点数组
+                 * @param Point 起点
+                 * @param Point 终点
+                 */
+                function getCurveByTwoPoints(obj1, obj2, count) {
+                    if (!obj1 || !obj2) {
+                        return null;
+                    }
+
+                    var B1 = function B1(x) {
+                        return 1 - 2 * x + x * x;
+                    };
+                    var B2 = function B2(x) {
+                        return 2 * x - 2 * x * x;
+                    };
+                    var B3 = function B3(x) {
+                        return x * x;
+                    };
+
+                    var curveCoordinates = [];
+
+                    var count = count || 40; // 曲线是由一些小的线段组成的，这个表示这个曲线所有到的折线的个数
+                    // var isFuture = false;
+                    var t, h, h2, lat3, lng3, j, t2;
+                    // var LnArray = [];
+                    var i = 0;
+                    var inc = 0;
+
+                    if (typeof obj2 == "undefined") {
+                        if (typeof curveCoordinates != "undefined") {
+                            curveCoordinates = [];
+                        }
+                        return;
+                    }
+
+                    var lat1 = parseFloat(obj1.lat);
+                    var lat2 = parseFloat(obj2.lat);
+                    var lng1 = parseFloat(obj1.lng);
+                    var lng2 = parseFloat(obj2.lng);
+
+                    // 计算曲线角度的方法
+                    if (lng2 > lng1) {
+                        if (parseFloat(lng2 - lng1) > 180) {
+                            if (lng1 < 0) {
+                                lng1 = parseFloat(180 + 180 + lng1);
+                            }
+                        }
+                    }
+
+                    if (lng1 > lng2) {
+                        if (parseFloat(lng1 - lng2) > 180) {
+                            if (lng2 < 0) {
+                                lng2 = parseFloat(180 + 180 + lng2);
+                            }
+                        }
+                    }
+
+                    t2 = 0;
+                    if (lat2 == lat1) {
+                        t = 0;
+                        h = lng1 - lng2;
+                    } else if (lng2 == lng1) {
+                        t = Math.PI / 2;
+                        h = lat1 - lat2;
+                    } else {
+                        t = Math.atan((lat2 - lat1) / (lng2 - lng1));
+                        h = (lat2 - lat1) / Math.sin(t);
+                    }
+                    if (t2 == 0) {
+                        t2 = t + Math.PI / 5;
+                    }
+                    h2 = h / 2;
+                    lng3 = h2 * Math.cos(t2) + lng1;
+                    lat3 = h2 * Math.sin(t2) + lat1;
+
+                    for (i = 0; i < count + 1; i++) {
+                        curveCoordinates.push([lng1 * B1(inc) + lng3 * B2(inc) + lng2 * B3(inc), lat1 * B1(inc) + lat3 * B2(inc) + lat2 * B3(inc)]);
+                        inc = inc + 1 / count;
+                    }
+                    return curveCoordinates;
+                }
+
+
+                var point = getCurvePoints([data[0].fromCenter, data[0].toCenter]);
+
+                function drawLine() { //画线
+                    ctx.clearRect(0, 0, view.width, view.height);
+                    var p0 = new Point({
+                        longitude: point[0][0],
+                        latitude: point[0][1],
+                        spatialReference: view.spatialReference
+                    });
+                    var s1 = view.toScreen(p0);
+                    ctx.beginPath();
+                    ctx.moveTo(s1.x, s1.y);
+                    point.forEach(function(item) {
+                        var p = new Point(item[0], item[1]);
+                        var s = view.toScreen(p);
+                        ctx.lineTo(s.x, s.y);
+                        ctx.strokeStyle = "rgba(255, 0, 0, 0.8)";
+                        ctx.stroke();
+                        ctx.shadowColor = 'rgba(255, 0, 0, 0.8)';
+                        ctx.shadowBlur = 1;
+                    });
+                    ctx.closePath();
+                };
+
+
+                var index = 0;
+                var drawPoint = function() {
+                    ctx2.clearRect(0, 0, view.width, view.height);
+                    var p = new Point(point[index][0], point[index][1]);
+                    var s = view.toScreen(p);
+                    ctx2.beginPath();
+                    ctx2.arc(s.x, s.y, 5, 0, 2 * Math.PI);
+                    ctx2.fillStyle = "rgba(250, 250, 0, 0.9)";
+                    ctx2.fill();
+                    ctx2.shadowColor = 'rgba(255, 250, 0, 1)';
+                    ctx2.shadowBlur = 20;
+                    ctx2.closePath();
+                    index = index + 1;
+                    if (index >= point.length) {
+                        index = 0;
+                    }
+                };
+
+
+                function movePoint() {
+                    ctx2.clearRect(0, 0, view.width, view.height);
+                    var prev = ctx2.globalCompositeOperation; //默认source-over
+                    ctx2.globalCompositeOperation = 'destination-in';
+                    ctx2.globalAlpha = 0.9;
+                    ctx2.fillRect(0, 0, view.width, view.height);
+                    ctx2.globalCompositeOperation = prev;
+                    drawPoint();
+                    drawLine();
+                };
+
+
+                function renderer() {
+                    movePoint();
+                }
+                animation();
+
+                function animation() {
+                    requestAnimationFrame(animation);
+                    renderer();
+                };
+            });
+    </script>
+</body>
+
+</html>
